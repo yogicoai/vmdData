@@ -18,6 +18,13 @@ export default function Dashboard() {
   }
   useEffect(() => { reload(); }, []);
 
+  async function delMonth(id, e) {
+    e.preventDefault(); e.stopPropagation();
+    if (!confirm('이 정산월을 삭제할까요? 발주 건·견적 데이터가 모두 사라지며 되돌릴 수 없습니다.')) return;
+    const r = await fetch(`/api/settlements/${id}`, { method: 'DELETE' });
+    if (r.ok) { toast('삭제했어요'); reload(); } else toast('삭제 실패');
+  }
+
   async function createMonth() {
     const r = await fetch('/api/settlements', {
       method: 'POST',
@@ -58,11 +65,17 @@ export default function Dashboard() {
         ) : (
           <div className="settle-list">
             {list.map((s) => (
-              <Link key={s._id} href={`/settlements/${s._id}`} className="settle-card">
-                <div className="m">{s.year}년 {s.month}월</div>
-                <div className="t">발주 {s.orderCount}건 · {s.status === 'done' ? '완료' : '진행중'}</div>
-                <div className="amt">{fmt(s.totalVat)}원 <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--ink-faint)' }}>(VAT포함)</span></div>
-              </Link>
+              <div key={s._id} className="settle-card">
+                <Link href={`/settlements/${s._id}`} style={{ display: 'block' }}>
+                  <div className="m">{s.year}년 {s.month}월</div>
+                  <div className="t">발주 {s.orderCount}건 · {s.status === 'done' ? '완료' : '진행중'}</div>
+                  <div className="amt">{fmt(s.totalVat)}원 <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--ink-faint)' }}>(VAT포함)</span></div>
+                </Link>
+                <div className="btn-row" style={{ marginTop: 12 }}>
+                  <Link className="btn sm" href={`/settlements/${s._id}`}>열기 · 수정</Link>
+                  <button className="btn sm ghost" onClick={(e) => delMonth(s._id, e)}>삭제</button>
+                </div>
+              </div>
             ))}
           </div>
         )}
