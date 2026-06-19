@@ -1,0 +1,94 @@
+/* 발주요청서 생성기 — 모두 .orderform 하위로 스코프 (전역 table 규칙과 충돌 방지) */
+.orderform{
+  --ofink:#1a1a1a;--ofink-soft:#5a5a5a;--ofink-faint:#999;
+  --ofline:#cfcfcf;--ofhead:#f2f0ec;--ofhead-dark:#e3e0da;
+  --ofaccent:#c0392b;--ofaccent-soft:#fbeae8;--ofred:#c0392b;
+  color:var(--ofink);
+}
+.orderform .hint{font-size:12.5px;color:var(--ofink-faint);margin-bottom:14px;text-align:center;line-height:1.6}
+
+.orderform .common-card{background:#fff;border:1px solid var(--ofline);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+.orderform .common-card .lbl{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--ofaccent);margin-bottom:10px}
+.orderform .common-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+.orderform .fld{display:flex;flex-direction:column;gap:3px}
+.orderform .fld label{font-size:11.5px;font-weight:700;color:var(--ofink-soft)}
+.orderform .fld input{padding:7px 9px;border:1px solid var(--ofline);border-radius:6px;font-size:13px;font-family:inherit;width:100%}
+.orderform .fld input:focus{outline:none;border-color:var(--ofaccent)}
+.orderform .fld.wide{grid-column:span 3}
+
+.orderform .sheet{background:#fff;border:1px solid var(--ofline);margin-bottom:22px;padding:24px 28px;position:relative;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.orderform .sheet-tools{position:absolute;top:10px;right:12px;display:flex;gap:6px;z-index:10}
+.orderform .sheet-tools button{font-size:11px;padding:4px 9px;border:1px solid var(--ofline);background:#fff;border-radius:5px;cursor:pointer;color:var(--ofink-soft);font-family:inherit}
+.orderform .sheet-tools button:hover{background:#f5f5f5;border-color:var(--ofink-faint)}
+.orderform .sheet-tools button.danger:hover{background:var(--ofaccent-soft);color:var(--ofaccent);border-color:var(--ofaccent)}
+
+.orderform .doc-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid var(--ofink);padding-bottom:10px;margin-bottom:12px}
+.orderform .doc-head .title{font-size:17px;font-weight:800;letter-spacing:-0.3px}
+.orderform .doc-head .ono{font-size:11.5px;color:var(--ofink-soft);text-align:right;line-height:1.7}
+.orderform .doc-head .ono b{color:var(--ofink)}
+
+.orderform .party-row{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:4px;font-size:11.5px;border:1px solid var(--ofink)}
+.orderform .party-col{padding:7px 10px}
+.orderform .party-col:first-child{border-right:1px solid var(--ofink)}
+.orderform .party-col .ph{font-weight:700;font-size:10.5px;color:var(--ofink-soft);margin-bottom:2px}
+.orderform .party-col .pl{font-weight:700}
+
+.orderform .sheet-name{font-size:13px;font-weight:800;background:var(--ofhead-dark);padding:6px 10px;margin:12px 0 0;border:1px solid var(--ofink);border-bottom:none}
+
+.orderform table{width:100%;border-collapse:collapse;font-size:12px}
+.orderform th,.orderform td{border:1px solid var(--ofink);padding:5px 6px;vertical-align:middle;text-align:left}
+.orderform th{background:var(--ofhead);font-weight:700;text-align:center;font-size:11.5px}
+.orderform .info-table td:first-child{background:var(--ofhead);font-weight:700;text-align:center;width:120px;white-space:nowrap}
+.orderform .info-table td:nth-child(3){background:var(--ofhead);font-weight:700;text-align:center;width:90px;white-space:nowrap}
+.orderform .ed{border:none;width:100%;font-family:inherit;font-size:12px;background:transparent}
+.orderform .ed:focus{outline:none;background:#fffbe6}
+.orderform .info-table .ed{text-align:left;padding-left:2px}
+
+.orderform .size-table th{font-size:11px}
+.orderform .size-table td{text-align:center}
+.orderform .size-table .out{color:var(--ofred);font-weight:600}
+.orderform .size-table .ed{text-align:center}
+.orderform .size-table td.lft .ed{text-align:left}
+.orderform .size-table .c-gu{width:42px}
+.orderform .size-table .c-qty{width:42px}
+.orderform .size-table .c-price{width:75px}
+.orderform .size-table .c-amt{width:85px}
+.orderform .size-table .c-del{width:26px;cursor:pointer;color:var(--ofaccent);font-weight:700}
+.orderform .size-table .c-del:hover{background:var(--ofaccent-soft)}
+.orderform .size-table tfoot td{background:#faf9f6;font-weight:700}
+.orderform .num{font-variant-numeric:tabular-nums;text-align:right!important;padding-right:6px!important}
+
+.orderform .add-size{margin:4px 0 0;font-size:11.5px;padding:5px 12px;border:1px dashed var(--ofline);background:none;border-radius:6px;cursor:pointer;color:var(--ofink-soft);font-family:inherit}
+.orderform .add-size:hover{border-color:var(--ofaccent);color:var(--ofaccent)}
+
+.orderform .img-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.orderform .img-slot{border:1.5px dashed var(--ofline);border-radius:8px;min-height:140px;position:relative;overflow:hidden;background:#fafafa;cursor:pointer}
+.orderform .img-slot.has-img{border-style:solid;cursor:default}
+.orderform .img-slot img{width:100%;height:auto;display:block}
+.orderform .img-slot .slot-label{position:absolute;top:0;left:0;right:0;background:var(--ofhead);font-size:10.5px;font-weight:700;text-align:center;border-bottom:1px solid var(--ofline);z-index:2}
+.orderform .img-slot .slot-label .ed{text-align:center;font-weight:700;font-size:10.5px;padding:3px}
+.orderform .img-slot .placeholder{color:var(--ofink-faint);font-size:11.5px;text-align:center;padding:34px 14px 14px;line-height:1.6}
+.orderform .img-slot .slot-body{padding-top:24px}
+.orderform .img-slot .remove-img{position:absolute;top:3px;right:3px;background:rgba(192,57,43,0.92);color:#fff;border:none;border-radius:4px;font-size:10.5px;padding:2px 7px;cursor:pointer;z-index:5}
+.orderform .img-slot.over{border-color:var(--ofaccent);background:var(--ofaccent-soft)}
+.orderform .img-slot.uploading{opacity:.6}
+
+.orderform .foot-table td:first-child{background:var(--ofhead);font-weight:700;text-align:center;width:120px;white-space:nowrap}
+.orderform .foot-table .ed{text-align:left;padding-left:2px}
+
+.orderform .add-sheet-bar{text-align:center;margin-top:8px}
+.orderform .add-sheet-btn{padding:12px 28px;border:2px dashed var(--ofline);background:#fff;border-radius:10px;font-size:13.5px;font-weight:700;color:var(--ofink-soft);cursor:pointer;font-family:inherit}
+.orderform .add-sheet-btn:hover{border-color:var(--ofaccent);color:var(--ofaccent)}
+
+@media print{
+  body{background:#fff}
+  .nav,.orderform .common-card,.orderform .hint,.orderform .sheet-tools,
+  .orderform .add-size,.orderform .add-sheet-bar,.of-toolbar{display:none!important}
+  .orderform .page,.orderform{max-width:none;margin:0;padding:0}
+  .orderform .sheet{border:none;box-shadow:none;margin:0;padding:12mm 11mm;page-break-after:always}
+  .orderform .sheet:last-child{page-break-after:auto}
+  .orderform .img-slot.no-img{display:none}
+  .orderform .size-table .c-del,.orderform .c-del{display:none!important}
+  @page{size:A4 landscape;margin:0}
+}
+@media(max-width:760px){.orderform .common-grid{grid-template-columns:1fr 1fr}.orderform .fld.wide{grid-column:span 2}}
