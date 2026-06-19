@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useToast } from '../../_components/Toast';
-import { fmt, orderTotal, sumBy } from '@/lib/util';
+import { fmt, orderTotal, sumBy, lineAmt } from '@/lib/util';
 import { extractQuote } from '@/lib/quote';
 import { buildEmails } from '@/lib/emails';
 
@@ -66,6 +66,10 @@ export default function SettlementPage() {
   const delOrder = (oid) => { if (!confirm('이 발주 건을 삭제할까요?')) return; updateOrders((orders) => orders.filter((o) => o.id !== oid)); };
   const upOrder = (oid, k, v) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, [k]: v } : o));
   const upRow = (oid, ri, k, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v } : r) }));
+  // 수량/단가 입력 시: 직접입력 금액(amt)은 비워서 자동계산으로 복귀
+  const upRowQP = (oid, ri, k, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v, amt: '' } : r) }));
+  // 금액 직접입력
+  const upRowAmt = (oid, ri, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, amt: v } : r) }));
   const addRow = (oid) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, rows: [...o.rows, { item: '', qty: 1, price: 0 }] } : o));
   const delRow = (oid, ri) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, rows: o.rows.filter((_, i) => i !== ri) } : o));
 
@@ -229,7 +233,7 @@ export default function SettlementPage() {
             <div className="card">
               <div className="lbl">발주 등록</div>
               <h2>이 달에 나간 발주 건</h2>
-              <p className="sub">프로모션·팝업 발주를 건별로 등록하거나, 발주요청서에서 바로 불러오세요.</p>
+              <p className="sub">프로모션·팝업 발주를 건별로 등록하거나, 발주요청서에서 바로 불러오세요. 금액은 ‘수량×단가’로 자동계산되며, <b>금액 칸에 직접 입력하면 그 값이 우선</b>됩니다.</p>
               <div className="btn-row" style={{ marginTop: 0, marginBottom: 8 }}>
                 <button className="btn primary sm" onClick={() => addOrder('promo')}>+ 프로모션 발주 추가</button>
                 <button className="btn amber sm" onClick={() => addOrder('popup')}>+ 팝업 발주 추가</button>
@@ -268,9 +272,12 @@ export default function SettlementPage() {
                               {o.rows.map((r, ri) => (
                                 <tr key={ri}>
                                   <td><input className="txt" value={r.item} placeholder="품목/항목명" onChange={(e) => upRow(o.id, ri, 'item', e.target.value)} /></td>
-                                  <td style={{ width: 60 }}><input type="number" value={r.qty || ''} onChange={(e) => upRow(o.id, ri, 'qty', Number(e.target.value))} /></td>
-                                  <td style={{ width: 90 }}><input type="number" value={r.price || ''} onChange={(e) => upRow(o.id, ri, 'price', Number(e.target.value))} /></td>
-                                  <td className="num" style={{ width: 100 }}>{fmt((r.qty || 0) * (r.price || 0))}</td>
+                                  <td style={{ width: 60 }}><input type="number" value={r.qty || ''} onChange={(e) => upRowQP(o.id, ri, 'qty', Number(e.target.value))} /></td>
+                                  <td style={{ width: 90 }}><input type="number" value={r.price || ''} placeholder="-" onChange={(e) => upRowQP(o.id, ri, 'price', Number(e.target.value))} /></td>
+                                  <td style={{ width: 110 }}><input type="number" className="num" style={{ textAlign: 'right' }}
+                                    value={(r.amt !== '' && r.amt != null) ? r.amt : (((r.qty || 0) * (r.price || 0)) || '')}
+                                    placeholder="금액 직접입력"
+                                    onChange={(e) => upRowAmt(o.id, ri, e.target.value === '' ? '' : Number(e.target.value))} /></td>
                                   <td style={{ width: 36 }}><button className="del-btn" onClick={() => delRow(o.id, ri)}>×</button></td>
                                 </tr>
                               ))}
