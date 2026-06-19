@@ -16,6 +16,7 @@ export default function SettlementPage() {
   const [tab, setTab] = useState('setup');
   const [openOrder, setOpenOrder] = useState(null);
   const [forms, setForms] = useState([]);
+  const [saveState, setSaveState] = useState('idle');
   const skipSave = useRef(true);
 
   // 로드
@@ -35,9 +36,13 @@ export default function SettlementPage() {
     const t = setTimeout(async () => {
       const body = {};
       ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status'].forEach((k) => { body[k] = S[k]; });
-      await fetch(`/api/settlements/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
+      setSaveState('saving');
+      try {
+        await fetch(`/api/settlements/${id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        setSaveState('saved');
+      } catch { setSaveState('idle'); }
     }, 600);
     return () => clearTimeout(t);
   }, [S, id]);
@@ -159,8 +164,11 @@ export default function SettlementPage() {
         {TABS.map(([k, label]) => (
           <button key={k} className={'tab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>{label}</button>
         ))}
-        <span style={{ marginLeft: 'auto', alignSelf: 'center', padding: '0 16px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
-          {S.year}년 {S.month}월 정산
+        <span style={{ marginLeft: 'auto', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 14, padding: '0 16px' }}>
+          {saveState !== 'idle' && (
+            <span className={'savestate ' + saveState}><span className="dot" />{saveState === 'saving' ? '저장 중…' : '저장됨'}</span>
+          )}
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{S.year}년 {S.month}월 정산</span>
         </span>
       </div>
 

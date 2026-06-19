@@ -12,7 +12,11 @@ export default function Nav() {
   const isOn = (href) => (href === '/' ? path === '/' || path.startsWith('/settlements') : path.startsWith(href));
   return (
     <div className="nav">
-      <div className="brand">요기보 정산<span>현대드림애드</span></div>
+      <Link href="/" className="brand">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="logo" src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="요기보" />
+        <span className="brand-txt">정산 시스템<em>현대드림애드</em></span>
+      </Link>
       <div className="links">
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href} className={isOn(l.href) ? 'on' : ''}>{l.label}</Link>

@@ -17,6 +17,7 @@ export default function OrderFormEditor() {
   const { id } = useParams();
   const { toast, ToastEl } = useToast();
   const [F, setF] = useState(null);
+  const [saveState, setSaveState] = useState('idle');
   const skipSave = useRef(true);
 
   useEffect(() => {
@@ -30,11 +31,15 @@ export default function OrderFormEditor() {
   useEffect(() => {
     if (!F) return;
     if (skipSave.current) { skipSave.current = false; return; }
-    const t = setTimeout(() => {
-      fetch(`/api/order-forms/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: F.title, common: F.common, sheets: F.sheets }),
-      });
+    const t = setTimeout(async () => {
+      setSaveState('saving');
+      try {
+        await fetch(`/api/order-forms/${id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: F.title, common: F.common, sheets: F.sheets }),
+        });
+        setSaveState('saved');
+      } catch { setSaveState('idle'); }
     }, 600);
     return () => clearTimeout(t);
   }, [F, id]);
@@ -83,9 +88,11 @@ export default function OrderFormEditor() {
 
   return (
     <>
-      <div className="of-toolbar" style={{ background: '#1a1a1a', color: '#fff', padding: '11px 26px', display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 46, zIndex: 40 }}>
+      <div className="of-toolbar" style={{ background: '#fff', borderBottom: '1px solid var(--line)', padding: '10px 26px', display: 'flex', alignItems: 'center', gap: 14, position: 'sticky', top: 48, zIndex: 40 }}>
         <input value={F.title || ''} placeholder="발주요청서 제목 (예: 더현대 대구 6층)" onChange={(e) => setF((p) => ({ ...p, title: e.target.value }))}
-          style={{ flex: 1, maxWidth: 360, padding: '7px 10px', borderRadius: 6, border: '1px solid #444', background: '#2a2a2a', color: '#fff', fontFamily: 'inherit', fontSize: 13 }} />
+          style={{ flex: 1, maxWidth: 360, padding: '8px 11px', borderRadius: 8, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13.5 }} />
+        <SaveState state={saveState} />
+        <span style={{ flex: 1 }} />
         <button className="btn" onClick={() => window.print()}>PDF로 인쇄</button>
         <SendToSettlement formId={id} toast={toast} />
       </div>
@@ -218,6 +225,15 @@ export default function OrderFormEditor() {
       </div>
       {ToastEl}
     </>
+  );
+}
+
+function SaveState({ state }) {
+  if (state === 'idle') return null;
+  return (
+    <span className={'savestate ' + state}>
+      <span className="dot" />{state === 'saving' ? '저장 중…' : '저장됨'}
+    </span>
   );
 }
 

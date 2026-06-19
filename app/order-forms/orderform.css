@@ -2,7 +2,7 @@
 .orderform{
   --ofink:#1a1a1a;--ofink-soft:#5a5a5a;--ofink-faint:#999;
   --ofline:#cfcfcf;--ofhead:#f2f0ec;--ofhead-dark:#e3e0da;
-  --ofaccent:#c0392b;--ofaccent-soft:#fbeae8;--ofred:#c0392b;
+  --ofaccent:#5b4ad1;--ofaccent-soft:#ece9fb;--ofred:#1a1a1a;
   color:var(--ofink);
 }
 .orderform .hint{font-size:12.5px;color:var(--ofink-faint);margin-bottom:14px;text-align:center;line-height:1.6}
@@ -40,8 +40,11 @@
 .orderform th{background:var(--ofhead);font-weight:700;text-align:center;font-size:11.5px}
 .orderform .info-table td:first-child{background:var(--ofhead);font-weight:700;text-align:center;width:120px;white-space:nowrap}
 .orderform .info-table td:nth-child(3){background:var(--ofhead);font-weight:700;text-align:center;width:90px;white-space:nowrap}
-.orderform .ed{border:none;width:100%;font-family:inherit;font-size:12px;background:transparent}
-.orderform .ed:focus{outline:none;background:#fffbe6}
+/* 화면: 편집 가능한 칸을 옅은 보라 배경+밑줄로 구분 / 인쇄: 깔끔하게 제거 */
+.orderform .ed{border:none;width:100%;font-family:inherit;font-size:12px;background:#f7f5ff;border-bottom:1px dashed #c9bdf3;border-radius:2px}
+.orderform .ed::placeholder{color:#b3a9e0}
+.orderform .ed:hover{background:#efebff}
+.orderform .ed:focus{outline:none;background:#fffbe6;border-bottom-color:var(--ofaccent)}
 .orderform .info-table .ed{text-align:left;padding-left:2px}
 
 .orderform .size-table th{font-size:11px}
@@ -89,6 +92,7 @@
   .orderform .sheet:last-child{page-break-after:auto}
   .orderform .img-slot.no-img{display:none}
   .orderform .size-table .c-del,.orderform .c-del{display:none!important}
+  .orderform .ed{background:transparent!important;border-bottom:none!important;border-radius:0!important}
   @page{size:A4 landscape;margin:0}
 }
 @media(max-width:760px){.orderform .common-grid{grid-template-columns:1fr 1fr}.orderform .fld.wide{grid-column:span 2}}
