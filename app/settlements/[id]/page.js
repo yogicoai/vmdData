@@ -141,12 +141,7 @@ export default function SettlementPage() {
     toast('정산서가 다운로드되었어요');
   };
 
-  // ── 백업/마이그레이션 ──
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `정산백업_${S.year}_${S.month}월.json`; a.click(); toast('백업 저장 완료');
-  };
+  // ── 기존 데이터 마이그레이션(구버전 .json 1회 가져오기) ──
   const importData = (e) => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
@@ -221,12 +216,11 @@ export default function SettlementPage() {
               </div>
             </div>
             <div className="card">
-              <h2>데이터 백업 / 마이그레이션</h2>
-              <p className="sub">모든 입력은 DB에 자동 저장됩니다. 기존 HTML 버전의 백업 .json을 가져오면 이 정산월로 이전됩니다.</p>
+              <h2>기존 데이터 가져오기</h2>
+              <p className="sub">모든 입력은 DB에 자동 저장됩니다(별도 백업 불필요). 기존 HTML 버전의 백업 .json이 있으면 한 번만 가져와 이 정산월로 이전하세요.</p>
               <div className="btn-row">
-                <button className="btn" onClick={exportData}>백업 저장 (.json)</button>
                 <label className="btn" style={{ cursor: 'pointer' }}>
-                  백업/구버전 불러오기
+                  구버전 .json 가져오기
                   <input type="file" accept=".json" style={{ display: 'none' }} onChange={importData} />
                 </label>
               </div>
