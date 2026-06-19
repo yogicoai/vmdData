@@ -161,15 +161,17 @@ export default function SettlementPage() {
   return (
     <>
       <div className="tabs">
-        {TABS.map(([k, label]) => (
-          <button key={k} className={'tab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>{label}</button>
-        ))}
-        <span style={{ marginLeft: 'auto', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 14, padding: '0 16px' }}>
-          {saveState !== 'idle' && (
-            <span className={'savestate ' + saveState}><span className="dot" />{saveState === 'saving' ? '저장 중…' : '저장됨'}</span>
-          )}
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{S.year}년 {S.month}월 정산</span>
-        </span>
+        <div className="tabs-inner">
+          {TABS.map(([k, label]) => (
+            <button key={k} className={'tab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>{label}</button>
+          ))}
+          <span style={{ marginLeft: 'auto', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 14, paddingLeft: 16 }}>
+            {saveState !== 'idle' && (
+              <span className={'savestate ' + saveState}><span className="dot" />{saveState === 'saving' ? '저장 중…' : '저장됨'}</span>
+            )}
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{S.year}년 {S.month}월 정산</span>
+          </span>
+        </div>
       </div>
 
       <div className="page">

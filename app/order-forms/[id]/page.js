@@ -88,13 +88,15 @@ export default function OrderFormEditor() {
 
   return (
     <>
-      <div className="of-toolbar" style={{ background: '#fff', borderBottom: '1px solid var(--line)', padding: '10px 26px', display: 'flex', alignItems: 'center', gap: 14, position: 'sticky', top: 48, zIndex: 40 }}>
-        <input value={F.title || ''} placeholder="발주요청서 제목 (예: 더현대 대구 6층)" onChange={(e) => setF((p) => ({ ...p, title: e.target.value }))}
-          style={{ flex: 1, maxWidth: 360, padding: '8px 11px', borderRadius: 8, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13.5 }} />
-        <SaveState state={saveState} />
-        <span style={{ flex: 1 }} />
-        <button className="btn" onClick={() => window.print()}>PDF로 인쇄</button>
-        <SendToSettlement formId={id} toast={toast} />
+      <div className="of-toolbar" style={{ background: '#fff', borderBottom: '1px solid var(--line)', position: 'sticky', top: 48, zIndex: 40 }}>
+        <div style={{ maxWidth: 1024, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <input value={F.title || ''} placeholder="발주요청서 제목 (예: 더현대 대구 6층)" onChange={(e) => setF((p) => ({ ...p, title: e.target.value }))}
+            style={{ flex: 1, maxWidth: 360, padding: '8px 11px', borderRadius: 8, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13.5 }} />
+          <SaveState state={saveState} />
+          <span style={{ flex: 1 }} />
+          <button className="btn" onClick={() => window.print()}>PDF로 인쇄</button>
+          <SendToSettlement formId={id} toast={toast} />
+        </div>
       </div>
 
       <div className="orderform">
