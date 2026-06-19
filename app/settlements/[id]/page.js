@@ -58,20 +58,33 @@ export default function SettlementPage() {
   const cfg = { year: S.year, month: S.month, deadline: S.deadline, vendor: S.vendor, contact: S.contact, sender: S.sender, company: S.company, bizNum: S.bizNum };
 
   // ── 발주건 조작 ──
+  // 발주를 수정하면 '작성중'으로 되돌림(다시 '등록 완료' 눌러 확정) — 자동저장은 백업으로 항상 동작
+  const editOrder = (oid, fn) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...fn(o), registered: false } : o));
   const addOrder = (type) => {
-    const o = { id: uid(), type, name: type === 'promo' ? '프로모션 발주' : '팝업 발주', store: '', rows: [{ item: '', qty: 1, price: 0 }] };
+    const o = { id: uid(), type, name: type === 'promo' ? '프로모션 발주' : '팝업 발주', store: '', rows: [{ item: '', qty: 1, price: 0 }], registered: false };
     setOpenOrder(o.id);
     updateOrders((orders) => [...orders, o]);
+    toast(type === 'promo' ? '프로모션 발주를 추가했어요' : '팝업 발주를 추가했어요');
   };
   const delOrder = (oid) => { if (!confirm('이 발주 건을 삭제할까요?')) return; updateOrders((orders) => orders.filter((o) => o.id !== oid)); };
-  const upOrder = (oid, k, v) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, [k]: v } : o));
-  const upRow = (oid, ri, k, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v } : r) }));
+  const upOrder = (oid, k, v) => editOrder(oid, (o) => ({ ...o, [k]: v }));
+  const upRow = (oid, ri, k, v) => editOrder(oid, (o) => ({ ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v } : r) }));
   // 수량/단가 입력 시: 직접입력 금액(amt)은 비워서 자동계산으로 복귀
-  const upRowQP = (oid, ri, k, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v, amt: '' } : r) }));
+  const upRowQP = (oid, ri, k, v) => editOrder(oid, (o) => ({ ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v, amt: '' } : r) }));
   // 금액 직접입력
-  const upRowAmt = (oid, ri, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, amt: v } : r) }));
-  const addRow = (oid) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, rows: [...o.rows, { item: '', qty: 1, price: 0 }] } : o));
-  const delRow = (oid, ri) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, rows: o.rows.filter((_, i) => i !== ri) } : o));
+  const upRowAmt = (oid, ri, v) => editOrder(oid, (o) => ({ ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, amt: v } : r) }));
+  const addRow = (oid) => editOrder(oid, (o) => ({ ...o, rows: [...o.rows, { item: '', qty: 1, price: 0 }] }));
+  const delRow = (oid, ri) => editOrder(oid, (o) => ({ ...o, rows: o.rows.filter((_, i) => i !== ri) }));
+  // 등록 완료: 검증 후 확정
+  const registerOrder = (oid) => {
+    const o = S.orders.find((x) => x.id === oid);
+    if (!o) return;
+    if (!o.store || !o.store.trim()) { toast('매장명을 먼저 입력하세요'); return; }
+    if (orderTotal(o) <= 0) { toast('금액을 입력하세요 (수량×단가 또는 금액 직접입력)'); return; }
+    updateOrders((orders) => orders.map((x) => x.id === oid ? { ...x, registered: true } : x));
+    setOpenOrder(null);
+    toast('등록 완료 ✓');
+  };
 
   // ── 발주요청서에서 불러오기 ──
   const importForm = async (formId) => {
@@ -255,6 +268,7 @@ export default function SettlementPage() {
                       <div className="order-head" onClick={() => setOpenOrder(open ? null : o.id)}>
                         <span className={'badge ' + o.type}>{o.type === 'promo' ? '프로모션' : '팝업'}</span>
                         <span className="nm">{o.name || '(이름 없음)'}</span>
+                        <span className={'badge ' + (o.registered ? 'ok' : 'gray')}>{o.registered ? '등록완료' : '작성중'}</span>
                         <span className="amt">{fmt(orderTotal(o))}원</span>
                         <button className="del-btn" onClick={(e) => { e.stopPropagation(); delOrder(o.id); }}>×</button>
                       </div>
@@ -284,6 +298,10 @@ export default function SettlementPage() {
                             </tbody>
                           </table></div>
                           <button className="add-row-btn" onClick={() => addRow(o.id)}>+ 항목 추가</button>
+                          <div className="btn-row" style={{ marginTop: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
+                            {o.registered && <span className="badge ok">✓ 등록됨</span>}
+                            <button className="btn green" onClick={() => registerOrder(o.id)}>등록 완료</button>
+                          </div>
                         </div>
                       )}
                     </div>
