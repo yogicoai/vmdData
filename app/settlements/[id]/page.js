@@ -48,6 +48,8 @@ export default function SettlementPage() {
   }, [S, id]);
 
   const patch = useCallback((p) => setS((prev) => ({ ...prev, ...p })), []);
+  // 항상 최신 상태(prev) 기준으로 orders를 갱신 — 빠른 연속 입력에서도 유실 없음
+  const updateOrders = useCallback((fn) => setS((prev) => ({ ...prev, orders: fn(prev.orders) })), []);
 
   if (!S) return <div className="page"><div className="empty">불러오는 중…</div></div>;
 
@@ -59,13 +61,13 @@ export default function SettlementPage() {
   const addOrder = (type) => {
     const o = { id: uid(), type, name: type === 'promo' ? '프로모션 발주' : '팝업 발주', store: '', rows: [{ item: '', qty: 1, price: 0 }] };
     setOpenOrder(o.id);
-    patch({ orders: [...S.orders, o] });
+    updateOrders((orders) => [...orders, o]);
   };
-  const delOrder = (oid) => { if (!confirm('이 발주 건을 삭제할까요?')) return; patch({ orders: S.orders.filter((o) => o.id !== oid) }); };
-  const upOrder = (oid, k, v) => patch({ orders: S.orders.map((o) => o.id === oid ? { ...o, [k]: v } : o) });
-  const upRow = (oid, ri, k, v) => patch({ orders: S.orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v } : r) }) });
-  const addRow = (oid) => patch({ orders: S.orders.map((o) => o.id === oid ? { ...o, rows: [...o.rows, { item: '', qty: 1, price: 0 }] } : o) });
-  const delRow = (oid, ri) => patch({ orders: S.orders.map((o) => o.id === oid ? { ...o, rows: o.rows.filter((_, i) => i !== ri) } : o) });
+  const delOrder = (oid) => { if (!confirm('이 발주 건을 삭제할까요?')) return; updateOrders((orders) => orders.filter((o) => o.id !== oid)); };
+  const upOrder = (oid, k, v) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, [k]: v } : o));
+  const upRow = (oid, ri, k, v) => updateOrders((orders) => orders.map((o) => o.id !== oid ? o : { ...o, rows: o.rows.map((r, i) => i === ri ? { ...r, [k]: v } : r) }));
+  const addRow = (oid) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, rows: [...o.rows, { item: '', qty: 1, price: 0 }] } : o));
+  const delRow = (oid, ri) => updateOrders((orders) => orders.map((o) => o.id === oid ? { ...o, rows: o.rows.filter((_, i) => i !== ri) } : o));
 
   // ── 발주요청서에서 불러오기 ──
   const importForm = async (formId) => {
