@@ -23,15 +23,19 @@ function defaultCommon() {
   };
 }
 
-// GET /api/order-forms — 목록(요약)
-export async function GET() {
+// GET /api/order-forms[?settlementId=...] — 목록(요약). settlementId 주면 해당 정산월 발주요청서만.
+export async function GET(req) {
+  const { searchParams } = new URL(req.url);
+  const settlementId = searchParams.get('settlementId');
+  const q = settlementId ? { settlementId } : {};
   const c = await col(COL.orderForms);
-  const docs = await c.find({}, { sort: { updatedAt: -1, createdAt: -1 } }).toArray();
+  const docs = await c.find(q, { sort: { updatedAt: -1, createdAt: -1 } }).toArray();
   const list = docs.map((d) => ({
     _id: d._id.toHexString(),
     title: d.title || d.common?.place || '(제목 없음)',
     place: d.common?.place || '',
     sheetCount: (d.sheets || []).length,
+    settlementId: d.settlementId || null,
     updatedAt: d.updatedAt ? d.updatedAt.toISOString() : null,
   }));
   return NextResponse.json(list);
@@ -43,6 +47,7 @@ export async function POST(req) {
   const now = new Date();
   const doc = {
     title: body.title || '',
+    settlementId: body.settlementId || null,
     common: { ...defaultCommon(), ...(body.common || {}) },
     sheets: Array.isArray(body.sheets) && body.sheets.length ? body.sheets : [blankSheet('백월')],
     createdAt: now,

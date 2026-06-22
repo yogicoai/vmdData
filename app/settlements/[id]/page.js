@@ -19,6 +19,10 @@ export default function SettlementPage() {
   const [saveState, setSaveState] = useState('idle');
   const skipSave = useRef(true);
 
+  const reloadForms = useCallback(() => {
+    fetch(`/api/order-forms?settlementId=${id}`, { cache: 'no-store' }).then((r) => r.ok && r.json()).then((d) => d && setForms(d));
+  }, [id]);
+
   // 로드
   useEffect(() => {
     (async () => {
@@ -26,8 +30,8 @@ export default function SettlementPage() {
       if (r.ok) { skipSave.current = true; setS(await r.json()); }
       else toast('정산을 불러올 수 없어요');
     })();
-    fetch('/api/order-forms', { cache: 'no-store' }).then((r) => r.ok && r.json()).then((d) => d && setForms(d));
-  }, [id]);
+    reloadForms();
+  }, [id, reloadForms]);
 
   // 자동 저장 (디바운스)
   useEffect(() => {
@@ -86,7 +90,17 @@ export default function SettlementPage() {
     toast('등록 완료 ✓');
   };
 
-  // ── 발주요청서에서 불러오기 ──
+  // ── ⓪ 발주요청서 ──
+  // 이 정산월에 연결된 새 발주요청서 생성 → 편집기 새 탭으로
+  const createOrderForm = async () => {
+    const r = await fetch('/api/order-forms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settlementId: id, common: { vendor: S.vendor, vendorMgr: S.contact, buyer: S.company } }),
+    });
+    if (r.ok) { const d = await r.json(); window.open(`/order-forms/${d._id}`, '_blank'); setTimeout(reloadForms, 500); }
+    else toast('생성 실패');
+  };
+  // 발주요청서 → 정산 발주건으로 반영(불러오기). importForm은 드롭다운/카드 공용.
   const importForm = async (formId) => {
     const r = await fetch(`/api/order-forms/${formId}/to-settlement`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settlementId: id }),
@@ -94,9 +108,10 @@ export default function SettlementPage() {
     if (r.ok) {
       const fresh = await fetch(`/api/settlements/${id}`, { cache: 'no-store' });
       skipSave.current = true; setS(await fresh.json());
-      toast('발주요청서를 불러왔어요');
-    } else toast('불러오기 실패');
+      toast('정산 발주건으로 반영했어요');
+    } else toast('반영 실패');
   };
+  const reflectedFormIds = new Set((S.orders || []).map((o) => o.sourceFormId).filter(Boolean));
 
   // ── 견적 대조 ──
   const handleQuotes = async (files) => {
@@ -148,7 +163,7 @@ export default function SettlementPage() {
   // 월말 정산 흐름: 발주 취합 → ①견적대조 → ②정산서 → ③세금계산서 → ④품의
   const TABS = [
     { k: 'setup', label: '설정' },
-    { k: 'orders', label: '발주 건' },
+    { k: 'orders', label: '⓪ 발주' },
     { k: 'compare', label: '① 견적 대조', step: 'compare' },
     { k: 'settle', label: '② 매장별 정산서', step: 'settle' },
     { k: 'tax', label: '③ 세금계산서', step: 'tax' },
@@ -206,9 +221,36 @@ export default function SettlementPage() {
           </>
         )}
 
-        {/* ── 발주 건 관리 ── */}
+        {/* ── ⓪ 발주 (발주요청서 + 발주 건) ── */}
         {tab === 'orders' && (
           <>
+            <div className="card">
+              <div className="lbl">⓪ 발주</div>
+              <h2>발주요청서 (현장 시공팀 전달용)</h2>
+              <p className="sub">이 달 나간 발주를 발주요청서로 작성해 PDF로 전달하고, ‘정산 발주건으로 반영’하면 아래 발주 건에 자동 등록됩니다.</p>
+              <div className="btn-row" style={{ marginTop: 0, marginBottom: forms.length ? 12 : 0 }}>
+                <button className="btn primary sm" onClick={createOrderForm}>+ 새 발주요청서 작성</button>
+              </div>
+              {forms.length > 0 && (
+                <div className="tbl-wrap"><table>
+                  <thead><tr><th style={{ textAlign: 'left' }}>발주요청서</th><th style={{ width: 70 }}>페이지</th><th style={{ width: 90 }}>반영</th><th style={{ width: 220 }}></th></tr></thead>
+                  <tbody>
+                    {forms.map((f) => (
+                      <tr key={f._id}>
+                        <td style={{ textAlign: 'left', fontWeight: 600 }}>{f.title || f.place || '(제목 없음)'}</td>
+                        <td>{f.sheetCount}</td>
+                        <td>{reflectedFormIds.has(f._id) ? <span className="badge ok">반영됨</span> : <span className="badge gray">미반영</span>}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <a className="btn sm" href={`/order-forms/${f._id}`} target="_blank" rel="noreferrer">열기·편집</a>{' '}
+                          <button className="btn sm green" onClick={() => importForm(f._id)}>정산 발주건으로 반영</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table></div>
+              )}
+            </div>
+
             <div className="strip">
               <div className="stat"><div className="l">등록된 발주 건</div><div className="v">{S.orders.length}건</div></div>
               <div className="stat"><div className="l">프로모션 합계</div><div className="v p">{fmt(promo)}원</div></div>
@@ -222,13 +264,6 @@ export default function SettlementPage() {
               <div className="btn-row" style={{ marginTop: 0, marginBottom: 8 }}>
                 <button className="btn primary sm" onClick={() => addOrder('promo')}>+ 프로모션 발주 추가</button>
                 <button className="btn amber sm" onClick={() => addOrder('popup')}>+ 팝업 발주 추가</button>
-                {forms.length > 0 && (
-                  <select className="btn sm" style={{ cursor: 'pointer' }} defaultValue=""
-                    onChange={(e) => { if (e.target.value) { importForm(e.target.value); e.target.value = ''; } }}>
-                    <option value="">발주요청서에서 불러오기…</option>
-                    {forms.map((f) => <option key={f._id} value={f._id}>{f.title || f.place || '(제목없음)'}</option>)}
-                  </select>
-                )}
               </div>
               <div>
                 {S.orders.length === 0 ? (
