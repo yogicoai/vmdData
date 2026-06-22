@@ -141,29 +141,6 @@ export default function SettlementPage() {
     toast('정산서가 다운로드되었어요');
   };
 
-  // ── 기존 데이터 마이그레이션(구버전 .json 1회 가져오기) ──
-  const importData = (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = (ev) => {
-      try {
-        const d = JSON.parse(ev.target.result);
-        // 구버전(localStorage) 형식: {cfg:{...}, orders, quoteItems, quoteFiles}
-        const flat = d.cfg ? { ...d.cfg, orders: d.orders || [], quoteItems: d.quoteItems || [], quoteFiles: d.quoteFiles || [] } : d;
-        patch({
-          year: flat.year ?? S.year, month: flat.month ?? S.month,
-          deadline: flat.deadline ?? S.deadline, vendor: flat.vendor ?? S.vendor,
-          contact: flat.contact ?? S.contact, sender: flat.sender ?? S.sender,
-          company: flat.company ?? S.company, bizNum: flat.bizNum ?? S.bizNum,
-          orders: flat.orders || S.orders, quoteItems: flat.quoteItems || [], quoteFiles: flat.quoteFiles || [],
-        });
-        toast('백업을 불러왔어요 (DB에 저장됨)');
-      } catch { toast('읽을 수 없어요'); }
-    };
-    r.readAsText(f);
-    e.target.value = '';
-  };
-
   const emails = buildEmails(cfg, { promo, popup });
   const copyT = (text) => navigator.clipboard.writeText(text).then(() => toast('복사했어요!')).catch(() => toast('복사 실패'));
 
@@ -213,16 +190,6 @@ export default function SettlementPage() {
                   <input value={S.company} onChange={(e) => patch({ company: e.target.value })} /></div>
                 <div className="fld"><label>사업자등록번호</label>
                   <input value={S.bizNum} onChange={(e) => patch({ bizNum: e.target.value })} /></div>
-              </div>
-            </div>
-            <div className="card">
-              <h2>기존 데이터 가져오기</h2>
-              <p className="sub">모든 입력은 DB에 자동 저장됩니다(별도 백업 불필요). 기존 HTML 버전의 백업 .json이 있으면 한 번만 가져와 이 정산월로 이전하세요.</p>
-              <div className="btn-row">
-                <label className="btn" style={{ cursor: 'pointer' }}>
-                  구버전 .json 가져오기
-                  <input type="file" accept=".json" style={{ display: 'none' }} onChange={importData} />
-                </label>
               </div>
             </div>
           </>
