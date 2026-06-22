@@ -24,7 +24,7 @@ export async function GET(_req, { params }) {
 // 수정 허용 필드 (whitelist)
 const EDITABLE = new Set([
   'year', 'month', 'deadline', 'vendor', 'contact', 'sender', 'company', 'bizNum',
-  'orders', 'quoteItems', 'quoteFiles', 'status',
+  'orders', 'quoteItems', 'quoteFiles', 'status', 'steps',
 ]);
 
 // PATCH /api/settlements/[id] — 부분 또는 전체 저장

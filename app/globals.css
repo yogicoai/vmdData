@@ -29,6 +29,8 @@ a{color:inherit;text-decoration:none}
 .tab{padding:13px 17px;font-size:13.5px;font-weight:600;color:var(--ink-faint);cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;white-space:nowrap}
 .tab:hover{color:var(--ink-soft)}
 .tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tab.done{color:var(--green)}
+.tab.done.on{color:var(--green);border-bottom-color:var(--green)}
 
 /* 자동저장 인디케이터 */
 .savestate{font-size:12px;font-weight:600;color:var(--ink-faint);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}

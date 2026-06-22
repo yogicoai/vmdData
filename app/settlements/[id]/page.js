@@ -35,7 +35,7 @@ export default function SettlementPage() {
     if (skipSave.current) { skipSave.current = false; return; }
     const t = setTimeout(async () => {
       const body = {};
-      ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status'].forEach((k) => { body[k] = S[k]; });
+      ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status', 'steps'].forEach((k) => { body[k] = S[k]; });
       setSaveState('saving');
       try {
         await fetch(`/api/settlements/${id}`, {
@@ -143,19 +143,30 @@ export default function SettlementPage() {
 
   const emails = buildEmails(cfg, { promo, popup });
   const copyT = (text) => navigator.clipboard.writeText(text).then(() => toast('복사했어요!')).catch(() => toast('복사 실패'));
+  const toggleStep = (key) => { const next = !(S.steps?.[key]); patch({ steps: { ...(S.steps || {}), [key]: next } }); toast(next ? '단계 완료 ✓' : '완료 해제'); };
 
+  // 월말 정산 흐름: 발주 취합 → ①견적대조 → ②정산서 → ③세금계산서 → ④품의
   const TABS = [
-    ['setup', '설정'], ['orders', '발주 건 관리'], ['compare', '견적 대조'],
-    ['settle', '매장별 정산서'], ['email', '이메일·품의'],
+    { k: 'setup', label: '설정' },
+    { k: 'orders', label: '발주 건' },
+    { k: 'compare', label: '① 견적 대조', step: 'compare' },
+    { k: 'settle', label: '② 매장별 정산서', step: 'settle' },
+    { k: 'tax', label: '③ 세금계산서', step: 'tax' },
+    { k: 'memo', label: '④ 지출품의', step: 'memo' },
   ];
 
   return (
     <>
       <div className="tabs">
         <div className="tabs-inner">
-          {TABS.map(([k, label]) => (
-            <button key={k} className={'tab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>{label}</button>
-          ))}
+          {TABS.map((t) => {
+            const done = t.step && S.steps?.[t.step];
+            return (
+              <button key={t.k} className={'tab' + (tab === t.k ? ' on' : '') + (done ? ' done' : '')} onClick={() => setTab(t.k)}>
+                {done ? '✓ ' : ''}{t.label}
+              </button>
+            );
+          })}
           <span style={{ marginLeft: 'auto', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 14, paddingLeft: 16 }}>
             {saveState !== 'idle' && (
               <span className={'savestate ' + saveState}><span className="dot" />{saveState === 'saving' ? '저장 중…' : '저장됨'}</span>
@@ -273,9 +284,14 @@ export default function SettlementPage() {
           </>
         )}
 
-        {/* ── 견적 대조 ── */}
+        {/* ── ① 견적 대조 (견적서 요청 → 대조 → 재확인) ── */}
         {tab === 'compare' && (
-          <QuoteCompare S={S} promo={promo} popup={popup} onFiles={handleQuotes} />
+          <>
+            <EmailCard title="✉ 견적서 요청 메일" text={emails.em1} onCopy={copyT} sub="이 달 발주분 견적서를 업체에 요청합니다. 받은 견적서는 아래에서 업로드해 대조하세요." />
+            <QuoteCompare S={S} promo={promo} popup={popup} onFiles={handleQuotes} />
+            <EmailCard title="✉ 금액 재확인 요청 메일 (차이 있을 때)" text={emails.em2} onCopy={copyT} sub="[항목명]·수량·단가를 실제 내용으로 수정 후 복사하세요." editable />
+            <StepDone done={!!S.steps?.compare} onToggle={() => toggleStep('compare')} label="견적 대조" />
+          </>
         )}
 
         {/* ── 매장별 정산서 ── */}
@@ -288,21 +304,39 @@ export default function SettlementPage() {
             <div className="btn-row">
               <button className="btn green" onClick={downloadSettle}>매장별 정산서 엑셀 다운로드</button>
             </div>
+            <StepDone done={!!S.steps?.settle} onToggle={() => toggleStep('settle')} label="매장별 정산서" />
           </div>
         )}
 
-        {/* ── 이메일·품의 ── */}
-        {tab === 'email' && (
+        {/* ── ③ 세금계산서 발행 요청 ── */}
+        {tab === 'tax' && (
           <>
-            <EmailCard title="① 견적서 요청" text={emails.em1} onCopy={copyT} />
-            <EmailCard title="② 금액 재확인 요청" text={emails.em2} onCopy={copyT} sub="[항목명]·수량·단가를 실제 내용으로 수정 후 복사하세요." editable />
-            <EmailCard title="③ 세금계산서 발행 요청" text={emails.em3} onCopy={copyT} />
-            <EmailCard title="지출품의서 작성 참고" text={emails.memo} onCopy={copyT} />
+            <EmailCard title="✉ 세금계산서 발행 요청 메일" text={emails.em3} onCopy={copyT} sub="정산 금액이 확정되면 업체에 세금계산서 발행을 요청합니다." />
+            <StepDone done={!!S.steps?.tax} onToggle={() => toggleStep('tax')} label="세금계산서 요청" />
+          </>
+        )}
+
+        {/* ── ④ 지출품의 ── */}
+        {tab === 'memo' && (
+          <>
+            <EmailCard title="📋 지출품의서 작성 참고" text={emails.memo} onCopy={copyT} sub="아래 내용을 그룹웨어 지출품의서에 붙여넣어 상신하세요." />
+            <StepDone done={!!S.steps?.memo} onToggle={() => toggleStep('memo')} label="지출품의 상신" />
           </>
         )}
       </div>
       {ToastEl}
     </>
+  );
+}
+
+function StepDone({ done, onToggle, label }) {
+  return (
+    <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: done ? 'var(--green-soft)' : '#fff', borderColor: done ? 'var(--green)' : 'var(--line)' }}>
+      <span style={{ fontWeight: 700, color: done ? 'var(--green)' : 'var(--ink-soft)' }}>
+        {done ? `✓ ‘${label}’ 단계 완료` : `‘${label}’ 단계가 끝나면 완료로 표시하세요`}
+      </span>
+      <button className={'btn ' + (done ? '' : 'green')} onClick={onToggle}>{done ? '완료 해제' : '이 단계 완료'}</button>
+    </div>
   );
 }
 
