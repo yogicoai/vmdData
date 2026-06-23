@@ -16,7 +16,11 @@ export default function OrderForms() {
   useEffect(() => { reload(); }, []);
 
   async function create() {
-    const r = await fetch('/api/order-forms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const now = new Date();
+    const r = await fetch('/api/order-forms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderYear: now.getFullYear(), orderMonth: now.getMonth() + 1 }),
+    });
     if (r.ok) { const d = await r.json(); router.push(`/order-forms/${d._id}`); }
     else toast('생성 실패');
   }

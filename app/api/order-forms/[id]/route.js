@@ -20,7 +20,7 @@ export async function GET(_req, { params }) {
   return NextResponse.json(serialize(doc));
 }
 
-const EDITABLE = new Set(['title', 'common', 'sheets']);
+const EDITABLE = new Set(['title', 'common', 'sheets', 'orderYear', 'orderMonth', 'settlementId']);
 
 export async function PATCH(req, { params }) {
   const { id } = await params;

@@ -36,7 +36,7 @@ export default function OrderFormEditor() {
       try {
         await fetch(`/api/order-forms/${id}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: F.title, common: F.common, sheets: F.sheets }),
+          body: JSON.stringify({ title: F.title, common: F.common, sheets: F.sheets, orderYear: F.orderYear, orderMonth: F.orderMonth }),
         });
         setSaveState('saved');
       } catch { setSaveState('idle'); }
@@ -91,7 +91,14 @@ export default function OrderFormEditor() {
       <div className="of-toolbar" style={{ background: '#fff', borderBottom: '1px solid var(--line)', position: 'sticky', top: 48, zIndex: 40 }}>
         <div style={{ maxWidth: 1024, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
           <input value={F.title || ''} placeholder="발주요청서 제목 (예: 더현대 대구 6층)" onChange={(e) => setF((p) => ({ ...p, title: e.target.value }))}
-            style={{ flex: 1, maxWidth: 360, padding: '8px 11px', borderRadius: 8, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13.5 }} />
+            style={{ flex: 1, maxWidth: 300, padding: '8px 11px', borderRadius: 8, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13.5 }} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'nowrap' }} title="이 발주가 속한 정산월. 정산월 생성 시 자동수집 기준이 됩니다.">
+            발주월
+            <input type="number" value={F.orderYear || ''} placeholder="년" onChange={(e) => setF((p) => ({ ...p, orderYear: e.target.value ? Number(e.target.value) : null }))}
+              style={{ width: 64, padding: '6px 8px', borderRadius: 7, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13 }} />
+            <input type="number" min={1} max={12} value={F.orderMonth || ''} placeholder="월" onChange={(e) => setF((p) => ({ ...p, orderMonth: e.target.value ? Number(e.target.value) : null }))}
+              style={{ width: 48, padding: '6px 8px', borderRadius: 7, border: '1px solid var(--line)', fontFamily: 'inherit', fontSize: 13 }} />
+          </span>
           <SaveState state={saveState} />
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={() => window.print()}>PDF로 인쇄</button>

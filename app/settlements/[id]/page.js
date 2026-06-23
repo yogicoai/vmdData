@@ -19,18 +19,19 @@ export default function SettlementPage() {
   const [saveState, setSaveState] = useState('idle');
   const skipSave = useRef(true);
 
-  const reloadForms = useCallback(() => {
-    fetch(`/api/order-forms?settlementId=${id}`, { cache: 'no-store' }).then((r) => r.ok && r.json()).then((d) => d && setForms(d));
+  // 이 정산월의 발주요청서: 발주월(year/month) 기준으로 조회 (반영 여부 무관하게 모두 표시)
+  const reloadForms = useCallback((yr, mo) => {
+    const url = (yr && mo) ? `/api/order-forms?year=${yr}&month=${mo}` : `/api/order-forms?settlementId=${id}`;
+    fetch(url, { cache: 'no-store' }).then((r) => r.ok && r.json()).then((d) => d && setForms(d));
   }, [id]);
 
   // 로드
   useEffect(() => {
     (async () => {
       const r = await fetch(`/api/settlements/${id}`, { cache: 'no-store' });
-      if (r.ok) { skipSave.current = true; setS(await r.json()); }
+      if (r.ok) { const doc = await r.json(); skipSave.current = true; setS(doc); reloadForms(doc.year, doc.month); }
       else toast('정산을 불러올 수 없어요');
     })();
-    reloadForms();
   }, [id, reloadForms]);
 
   // 자동 저장 (디바운스)
@@ -95,9 +96,9 @@ export default function SettlementPage() {
   const createOrderForm = async () => {
     const r = await fetch('/api/order-forms', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settlementId: id, common: { vendor: S.vendor, vendorMgr: S.contact, buyer: S.company } }),
+      body: JSON.stringify({ settlementId: id, orderYear: S.year, orderMonth: S.month, common: { vendor: S.vendor, vendorMgr: S.contact, buyer: S.company } }),
     });
-    if (r.ok) { const d = await r.json(); window.open(`/order-forms/${d._id}`, '_blank'); setTimeout(reloadForms, 500); }
+    if (r.ok) { const d = await r.json(); window.open(`/order-forms/${d._id}`, '_blank'); setTimeout(() => reloadForms(S.year, S.month), 500); }
     else toast('생성 실패');
   };
   // 발주요청서 → 정산 발주건으로 반영(불러오기). importForm은 드롭다운/카드 공용.

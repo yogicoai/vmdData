@@ -23,11 +23,16 @@ function defaultCommon() {
   };
 }
 
-// GET /api/order-forms[?settlementId=...] — 목록(요약). settlementId 주면 해당 정산월 발주요청서만.
+// GET /api/order-forms[?settlementId=..|?year=&month=] — 목록(요약)
+//   settlementId: 해당 정산에 반영된 것 / year+month: 해당 발주월 요청서
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const settlementId = searchParams.get('settlementId');
-  const q = settlementId ? { settlementId } : {};
+  const year = searchParams.get('year');
+  const month = searchParams.get('month');
+  let q = {};
+  if (settlementId) q = { settlementId };
+  else if (year && month) q = { orderYear: Number(year), orderMonth: Number(month) };
   const c = await col(COL.orderForms);
   const docs = await c.find(q, { sort: { updatedAt: -1, createdAt: -1 } }).toArray();
   const list = docs.map((d) => ({
@@ -36,6 +41,8 @@ export async function GET(req) {
     place: d.common?.place || '',
     sheetCount: (d.sheets || []).length,
     settlementId: d.settlementId || null,
+    orderYear: d.orderYear || null,
+    orderMonth: d.orderMonth || null,
     updatedAt: d.updatedAt ? d.updatedAt.toISOString() : null,
   }));
   return NextResponse.json(list);
@@ -48,6 +55,8 @@ export async function POST(req) {
   const doc = {
     title: body.title || '',
     settlementId: body.settlementId || null,
+    orderYear: body.orderYear ? Number(body.orderYear) : null,   // 발주월(연)
+    orderMonth: body.orderMonth ? Number(body.orderMonth) : null, // 발주월(월)
     common: { ...defaultCommon(), ...(body.common || {}) },
     sheets: Array.isArray(body.sheets) && body.sheets.length ? body.sheets : [blankSheet('백월')],
     createdAt: now,
