@@ -429,16 +429,36 @@ function SettleTable({ rows }) {
   );
 }
 
+function orderCheckItems(o) {
+  if (o.type === 'promo') {
+    return (o.stores || []).map((st, i) => ({
+      key: `${o.id}:s${i}`,
+      title: st.name || '(매장)',
+      detail: (o.specs || []).filter((sp) => Number(st.qty?.[sp.key]) > 0).map((sp) => `${sp.name}×${st.qty[sp.key]}`).join(' · ') || '수량 없음',
+      amt: promoStoreTotal(st, o.specs || []),
+    }));
+  }
+  return (o.parts || []).map((pt, i) => ({
+    key: `${o.id}:p${i}`,
+    title: pt.name || '(부위)',
+    detail: [pt.spec, (pt.sizes || []).filter((s) => s.out || s.qty).map((s) => `${s.gu ? s.gu + ' ' : ''}${s.out || ''}${s.qty ? ' ×' + s.qty : ''}`).join(', ')].filter(Boolean).join(' / ') || '-',
+    amt: Number(pt.amount) || 0,
+  }));
+}
+
 function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onToggle, onFinal, onFiles, emailReq, onCopy }) {
   const fileRef = useRef(null);
+  const [collapsed, setCollapsed] = useState({});
   const checks = S.checks || {};
-  const allChecked = orders.length > 0 && orders.every((o) => checks[o.id]);
+  const allItems = orders.flatMap(orderCheckItems);
+  const doneCount = allItems.filter((it) => checks[it.key]).length;
+  const allChecked = allItems.length > 0 && doneCount === allItems.length;
   return (
     <>
       <div className="card">
         <div className="lbl">STEP 3 · 견적 대조</div>
         <h2>견적서 요청 & 대조</h2>
-        <p className="sub">업체에 견적서를 요청하고, 받은 견적서를 내가 작성한 발주와 하나씩 대조해 체크하세요.</p>
+        <p className="sub">업체에 견적서를 요청하고, 받은 견적서를 보면서 발주 항목을 하나하나 대조해 체크하세요.</p>
         <div className="email-box" style={{ maxHeight: 160 }}>{emailReq}</div>
         <div className="btn-row" style={{ marginTop: 10 }}>
           <button className="btn sm" onClick={() => onCopy(emailReq)}>견적서 요청 메일 복사</button>
@@ -449,25 +469,49 @@ function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onTog
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: 17 }}>대조 체크리스트</h2>
-        <p className="sub">각 발주의 금액이 업체 견적서와 같은지 확인하고 ‘이상 없음’ 체크하세요.</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <h2 style={{ fontSize: 17 }}>대조 체크리스트</h2>
+          {allItems.length > 0 && (allChecked
+            ? <span className="badge ok">✓ 전체 이상 없음</span>
+            : <span className="badge gray">{doneCount}/{allItems.length} 확인</span>)}
+        </div>
+        <p className="sub">발주를 펼쳐 매장·부위별 내용을 견적서와 대조하고 체크하세요.</p>
         {orders.length === 0 ? <div className="empty">발주가 없습니다. STEP 2에서 먼저 등록하세요.</div> : (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {orders.map((o) => (
-              <label key={o.id} className={'check-row' + (checks[o.id] ? ' on' : '')}>
-                <input type="checkbox" checked={!!checks[o.id]} onChange={() => onToggle(o.id)} />
-                <span className={'badge ' + o.type}>{o.type === 'promo' ? '프로모션' : '팝업'}</span>
-                <span className="nm">{o.type === 'promo' ? (o.name || '(발주명 없음)') : (o.store || '(매장 없음)')}</span>
-                <span className="amt">{fmt(orderAmount(o))}원</span>
-              </label>
-            ))}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {orders.map((o) => {
+              const items = orderCheckItems(o);
+              const oChk = items.filter((it) => checks[it.key]).length;
+              const oDone = items.length > 0 && oChk === items.length;
+              const col = collapsed[o.id];
+              return (
+                <div key={o.id} style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                  <div onClick={() => setCollapsed((c) => ({ ...c, [o.id]: !c[o.id] }))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 15px', cursor: 'pointer', background: oDone ? 'var(--green-soft)' : 'var(--surface-2)' }}>
+                    <span className={'badge ' + o.type}>{o.type === 'promo' ? '프로모션' : '팝업'}</span>
+                    <span style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{o.type === 'promo' ? (o.name || '(발주명 없음)') : (o.store || '(매장 없음)')}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: oDone ? 'var(--green)' : 'var(--ink-3)' }}>{oDone ? '✓ 완료' : `${oChk}/${items.length}`}</span>
+                    <span className="num" style={{ fontWeight: 800, minWidth: 70, textAlign: 'right' }}>{fmt(orderAmount(o))}원</span>
+                    <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>{col ? '▸' : '▾'}</span>
+                  </div>
+                  {!col && (
+                    <div style={{ padding: '10px 12px 12px', display: 'grid', gap: 6 }}>
+                      {items.length === 0 ? <div className="note" style={{ padding: '4px 4px' }}>대조할 항목이 없어요.</div> : items.map((it) => (
+                        <label key={it.key} className={'check-row' + (checks[it.key] ? ' on' : '')} style={{ padding: '11px 13px' }}>
+                          <input type="checkbox" checked={!!checks[it.key]} onChange={() => onToggle(it.key)} />
+                          <div className="nm" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span>{it.title}</span>
+                            <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 400 }}>{it.detail}</span>
+                          </div>
+                          <span className="amt">{fmt(it.amt)}원</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
-        <div style={{ marginTop: 14 }}>
-          {allChecked
-            ? <span className="badge ok">✓ 전체 대조 완료 · 이상 없음</span>
-            : <span className="badge gray">{orders.filter((o) => checks[o.id]).length}/{orders.length} 확인됨 — 모두 체크하면 이상없음</span>}
-        </div>
       </div>
 
       <div className="card">
