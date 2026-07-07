@@ -2,8 +2,7 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '../../_components/Toast';
-import { fmt, orderAmount, sumAmount, settleByStore, promoStoreTotal, promoStoreQty, PROMO_PRESET, lineAmt } from '@/lib/util';
-import { extractQuote } from '@/lib/quote';
+import { fmt, orderAmount, sumAmount, settleByStore, promoStoreTotal, PROMO_PRESET } from '@/lib/util';
 import { buildEmails } from '@/lib/emails';
 
 const CFG_FIELDS = ['deadline', 'vendor', 'contact', 'sender', 'company', 'bizNum'];
@@ -53,7 +52,7 @@ export default function SettlementWizard() {
     if (skipSave.current) { skipSave.current = false; return; }
     const t = setTimeout(async () => {
       const body = {};
-      ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status'].forEach((k) => { body[k] = S[k]; });
+      ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status', 'checks', 'final'].forEach((k) => { body[k] = S[k]; });
       setSaveState('saving');
       try { await fetch(`/api/settlements/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); setSaveState('saved'); }
       catch { setSaveState('idle'); }
@@ -66,9 +65,16 @@ export default function SettlementWizard() {
 
   const promo = sumAmount(S.orders, 'promo');
   const popup = sumAmount(S.orders, 'popup');
+  // 세금계산서·품의에 들어갈 확정 금액(견적서 기준). 비어있으면 발주 총액 사용.
+  const hasFinalP = S.final?.promo !== undefined && S.final?.promo !== null && S.final?.promo !== '';
+  const hasFinalU = S.final?.popup !== undefined && S.final?.popup !== null && S.final?.popup !== '';
+  const promoFinal = hasFinalP ? Number(S.final.promo) : promo;
+  const popupFinal = hasFinalU ? Number(S.final.popup) : popup;
   const cfg = { year: S.year, month: S.month, deadline: S.deadline, vendor: S.vendor, contact: S.contact, sender: S.sender, company: S.company, bizNum: S.bizNum };
-  const emails = buildEmails(cfg, { promo, popup });
+  const emails = buildEmails(cfg, { promo: promoFinal, popup: popupFinal });
   const copyT = (t) => navigator.clipboard.writeText(t).then(() => toast('복사했어요!')).catch(() => toast('복사 실패'));
+  const toggleCheck = (oid) => patch({ checks: { ...(S.checks || {}), [oid]: !(S.checks?.[oid]) } });
+  const setFinal = (k, v) => patch({ final: { ...(S.final || {}), [k]: v } });
 
   const saveOrder = (order, isNew) => {
     setS((prev) => ({ ...prev, orders: isNew ? [...prev.orders, order] : prev.orders.map((o) => o.id === order.id ? order : o) }));
@@ -77,17 +83,11 @@ export default function SettlementWizard() {
   };
   const delOrder = (oid) => { if (!confirm('이 발주를 삭제할까요?')) return; setS((prev) => ({ ...prev, orders: prev.orders.filter((o) => o.id !== oid) })); };
 
-  const handleQuotes = async (files) => {
-    const XLSX = await import('xlsx');
-    const items = []; const names = [];
-    for (const f of files) {
-      try {
-        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-        wb.SheetNames.forEach((sn) => extractQuote(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null })).forEach((it) => items.push(it)));
-        names.push(f.name);
-      } catch { toast('읽을 수 없어요: ' + f.name); }
-    }
-    patch({ quoteItems: items, quoteFiles: names });
+  // 받은 견적서 첨부(파일명 기록만). 대조는 아래 체크리스트로 수동 확인.
+  const handleQuotes = (files) => {
+    const names = [...files].map((f) => f.name);
+    patch({ quoteFiles: [...(S.quoteFiles || []), ...names] });
+    toast(names.length + '개 견적서를 첨부했어요');
   };
 
   const rows = settleByStore(S.orders);
@@ -171,7 +171,10 @@ export default function SettlementWizard() {
           </>
         )}
 
-        {cur.key === 'compare' && <QuoteCompare S={S} my={promo + popup} onFiles={handleQuotes} emailReq={emails.em1} emailRecheck={emails.em2} onCopy={copyT} />}
+        {cur.key === 'compare' && (
+          <QuoteChecklist S={S} orders={S.orders} promo={promo} popup={popup} promoFinal={promoFinal} popupFinal={popupFinal}
+            onToggle={toggleCheck} onFinal={setFinal} onFiles={handleQuotes} emailReq={emails.em1} onCopy={copyT} />
+        )}
 
         {cur.key === 'settle' && (
           <div className="card">
@@ -426,45 +429,64 @@ function SettleTable({ rows }) {
   );
 }
 
-function QuoteCompare({ S, my, onFiles, emailReq, emailRecheck, onCopy }) {
-  const dropRef = useRef(null); const fileRef = useRef(null);
-  const qT = (S.quoteItems || []).reduce((a, q) => a + (q.amt || 0), 0);
-  const diff = qT - my;
-  const hasData = (S.quoteItems || []).length || (S.quoteFiles || []).length;
+function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onToggle, onFinal, onFiles, emailReq, onCopy }) {
+  const fileRef = useRef(null);
+  const checks = S.checks || {};
+  const allChecked = orders.length > 0 && orders.every((o) => checks[o.id]);
   return (
     <>
       <div className="card">
         <div className="lbl">STEP 3 · 견적 대조</div>
-        <h2>업체 견적서 대조</h2>
-        <p className="sub">견적서를 요청하고, 받은 견적서를 업로드해 발주 합계와 비교하세요.</p>
-        <div className="email-box" style={{ maxHeight: 170 }}>{emailReq}</div>
-        <div className="btn-row" style={{ marginTop: 10, marginBottom: 4 }}><button className="btn sm" onClick={() => onCopy(emailReq)}>견적서 요청 메일 복사</button></div>
-        <div className="drop" ref={dropRef} style={{ marginTop: 12 }} onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); dropRef.current?.classList.add('over'); }} onDragLeave={() => dropRef.current?.classList.remove('over')}
-          onDrop={(e) => { e.preventDefault(); dropRef.current?.classList.remove('over'); onFiles(e.dataTransfer.files); }}>
-          견적서(.xls·.xlsx) 끌어다 놓거나 클릭
+        <h2>견적서 요청 & 대조</h2>
+        <p className="sub">업체에 견적서를 요청하고, 받은 견적서를 내가 작성한 발주와 하나씩 대조해 체크하세요.</p>
+        <div className="email-box" style={{ maxHeight: 160 }}>{emailReq}</div>
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button className="btn sm" onClick={() => onCopy(emailReq)}>견적서 요청 메일 복사</button>
+          <button className="btn sm ghost" onClick={() => fileRef.current?.click()}>받은 견적서 첨부</button>
         </div>
-        <input ref={fileRef} type="file" accept=".xls,.xlsx" multiple style={{ display: 'none' }} onChange={(e) => onFiles(e.target.files)} />
-        {S.quoteFiles?.length > 0 && <p className="note">업로드: {S.quoteFiles.join(', ')}</p>}
+        <input ref={fileRef} type="file" accept=".xls,.xlsx,.pdf" multiple style={{ display: 'none' }} onChange={(e) => onFiles(e.target.files)} />
+        {S.quoteFiles?.length > 0 && <p className="note">첨부: {S.quoteFiles.join(', ')}</p>}
       </div>
-      {hasData ? (
-        <div className="card">
-          <div className="strip">
-            <div className="stat"><div className="l">내 발주 합계</div><div className="v p">{fmt(my)}</div></div>
-            <div className="stat"><div className="l">견적서 합계</div><div className="v">{fmt(qT)}</div></div>
-            <div className="stat"><div className="l">차이</div><div className={'v ' + (diff === 0 ? 'g' : 'r')}>{(diff > 0 ? '+' : '') + fmt(diff)}</div></div>
+
+      <div className="card">
+        <h2 style={{ fontSize: 17 }}>대조 체크리스트</h2>
+        <p className="sub">각 발주의 금액이 업체 견적서와 같은지 확인하고 ‘이상 없음’ 체크하세요.</p>
+        {orders.length === 0 ? <div className="empty">발주가 없습니다. STEP 2에서 먼저 등록하세요.</div> : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {orders.map((o) => (
+              <label key={o.id} className={'check-row' + (checks[o.id] ? ' on' : '')}>
+                <input type="checkbox" checked={!!checks[o.id]} onChange={() => onToggle(o.id)} />
+                <span className={'badge ' + o.type}>{o.type === 'promo' ? '프로모션' : '팝업'}</span>
+                <span className="nm">{o.type === 'promo' ? (o.name || '(발주명 없음)') : (o.store || '(매장 없음)')}</span>
+                <span className="amt">{fmt(orderAmount(o))}원</span>
+              </label>
+            ))}
           </div>
-          <div style={{ marginBottom: 8 }}>{diff === 0 ? <span className="badge ok">✓ 금액 일치</span> : <span className="badge diff">⚠ {fmt(Math.abs(diff))}원 차이 — 확인 필요</span>}</div>
-          <div className="tbl-wrap"><table>
-            <thead><tr><th style={{ textAlign: 'left' }}>추출 항목</th><th style={{ width: 56 }}>수량</th><th style={{ width: 90 }}>단가</th><th style={{ width: 100 }}>금액</th></tr></thead>
-            <tbody>
-              {S.quoteItems.map((q, i) => <tr key={i}><td style={{ textAlign: 'left' }}>{q.item}</td><td className="num">{q.qty}</td><td className="num">{fmt(q.price)}</td><td className="num">{fmt(q.amt)}</td></tr>)}
-              <tr className="row-total"><td colSpan={3}>견적서 합계</td><td className="num">{fmt(qT)}</td></tr>
-            </tbody>
-          </table></div>
-          {diff !== 0 && <><div className="email-box" style={{ maxHeight: 150 }}>{emailRecheck}</div><div className="btn-row"><button className="btn sm" onClick={() => onCopy(emailRecheck)}>금액 재확인 메일 복사</button></div></>}
+        )}
+        <div style={{ marginTop: 14 }}>
+          {allChecked
+            ? <span className="badge ok">✓ 전체 대조 완료 · 이상 없음</span>
+            : <span className="badge gray">{orders.filter((o) => checks[o.id]).length}/{orders.length} 확인됨 — 모두 체크하면 이상없음</span>}
         </div>
-      ) : null}
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: 17 }}>확정 금액 (견적서 기준)</h2>
+        <p className="sub">세금계산서·지출품의서에 들어갈 최종 공급가입니다. 발주 합계가 기본값이며, 견적서 금액과 다르면 수정하세요.</p>
+        <div className="grid2">
+          <div className="fld"><label>프로모션 공급가</label>
+            <input type="number" value={S.final?.promo ?? ''} placeholder={String(promo)} onChange={(e) => onFinal('promo', e.target.value)} />
+            <div className="note">발주 합계: {fmt(promo)}원</div></div>
+          <div className="fld"><label>팝업 공급가</label>
+            <input type="number" value={S.final?.popup ?? ''} placeholder={String(popup)} onChange={(e) => onFinal('popup', e.target.value)} />
+            <div className="note">발주 합계: {fmt(popup)}원</div></div>
+        </div>
+        <div className="strip" style={{ marginTop: 14 }}>
+          <div className="stat"><div className="l">합계 공급가</div><div className="v p">{fmt(promoFinal + popupFinal)}</div></div>
+          <div className="stat"><div className="l">부가세</div><div className="v">{fmt(Math.round((promoFinal + popupFinal) * 0.1))}</div></div>
+          <div className="stat"><div className="l">VAT포함 합계</div><div className="v g">{fmt(Math.round((promoFinal + popupFinal) * 1.1))}</div></div>
+        </div>
+      </div>
     </>
   );
 }

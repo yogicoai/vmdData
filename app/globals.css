@@ -126,6 +126,14 @@ td input.txt{text-align:left}
 .settle-card .t{font-size:13.5px;color:var(--ink-3);margin-top:5px}
 .settle-card .amt{font-size:17px;font-weight:800;color:var(--blue);margin-top:12px;font-variant-numeric:tabular-nums}
 
+/* 견적 대조 체크리스트 */
+.check-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface);transition:.12s}
+.check-row:hover{background:var(--surface-2)}
+.check-row.on{border-color:var(--green-bright);background:var(--green-soft)}
+.check-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--green-bright);cursor:pointer;flex-shrink:0}
+.check-row .nm{flex:1;font-weight:600;font-size:14px}
+.check-row .amt{font-variant-numeric:tabular-nums;font-weight:800}
+
 /* 게시판(행) 목록 */
 .board{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .board .row{display:grid;grid-template-columns:1.3fr 0.7fr 1.15fr 0.75fr 0.95fr 34px;align-items:center;gap:10px;padding:15px 20px;border-bottom:1px solid var(--line-2);cursor:pointer;transition:background .1s}
