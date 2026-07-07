@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { col, COL } from '@/lib/db';
 import { serialize, orderTotal, sumBy } from '@/lib/util';
-import { formToOrder } from '@/lib/orderform';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +33,7 @@ export async function GET() {
       orderCount: orders.length,
       total: promo + popup,
       totalVat: Math.round((promo + popup) * 1.1),
+      createdAt: d.createdAt ? d.createdAt.toISOString() : null,
       updatedAt: d.updatedAt ? d.updatedAt.toISOString() : null,
     };
   });
@@ -65,22 +65,6 @@ export async function POST(req) {
     updatedAt: now,
   };
   const res = await c.insertOne(doc);
-  const sid = res.insertedId;
-
-  // STEP3 자동수집: 발주월(orderYear/orderMonth)이 일치하고 아직 어느 정산에도 반영 안 된 발주요청서를 발주건으로 자동 등록
-  let orders = [];
-  const formsCol = await col(COL.orderForms);
-  const forms = await formsCol.find({
-    orderYear: year, orderMonth: month,
-    $or: [{ settlementId: null }, { settlementId: { $exists: false } }],
-  }).toArray();
-  if (forms.length) {
-    orders = forms.map((f) => formToOrder(f));
-    await c.updateOne({ _id: sid }, { $set: { orders, updatedAt: new Date() } });
-    await formsCol.updateMany(
-      { _id: { $in: forms.map((f) => f._id) } },
-      { $set: { settlementId: sid.toHexString() } },
-    );
-  }
-  return NextResponse.json(serialize({ ...doc, _id: sid, orders }), { status: 201 });
+  // 발주는 정산 안에서 직접입력(발주요청서 연동 없음)
+  return NextResponse.json(serialize({ ...doc, _id: res.insertedId }), { status: 201 });
 }
