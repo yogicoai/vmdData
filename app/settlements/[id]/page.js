@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '../../_components/Toast';
-import { fmt, orderAmount, sumAmount, settleByStore, promoStoreTotal, PROMO_PRESET } from '@/lib/util';
+import { fmt, orderAmount, sumAmount, settleByStore, promoStoreTotal, promoStoreQty, PROMO_PRESET } from '@/lib/util';
 import { buildEmails } from '@/lib/emails';
+import { exportPromoXlsx, exportPopupXlsx } from '@/lib/exportOrder';
 
 const CFG_FIELDS = ['deadline', 'vendor', 'contact', 'sender', 'company', 'bizNum'];
 const uid = () => Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -13,7 +14,7 @@ const STEPS = [
 ];
 
 const emptyPromo = () => ({ id: uid(), type: 'promo', name: '', arriveDate: '', specs: PROMO_PRESET.map((s) => ({ ...s })), stores: [{ name: '', category: '', note: '', qty: {} }], images: [] });
-const emptyPopup = () => ({ id: uid(), type: 'popup', name: '', store: '', orderDate: '', parts: [{ name: '백월', attach: '', spec: '', sizes: [{ gu: 'A', out: '', real: '', qty: 1 }], amount: '', images: [] }] });
+const emptyPopup = () => ({ id: uid(), type: 'popup', name: '', store: '', orderDate: '', parts: [{ name: '백월', attach: '', spec: '', sizes: [{ gu: 'A', out: '', real: '', qty: 0 }], amount: 0, images: [] }] });
 
 async function uploadImages(files, toast) {
   const urls = [];
@@ -52,7 +53,7 @@ export default function SettlementWizard() {
     if (skipSave.current) { skipSave.current = false; return; }
     const t = setTimeout(async () => {
       const body = {};
-      ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status', 'checks', 'final'].forEach((k) => { body[k] = S[k]; });
+      ['year', 'month', ...CFG_FIELDS, 'orders', 'quoteItems', 'quoteFiles', 'status', 'checks', 'final', 'reviewedAt'].forEach((k) => { body[k] = S[k]; });
       setSaveState('saving');
       try { await fetch(`/api/settlements/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); setSaveState('saved'); }
       catch { setSaveState('idle'); }
@@ -77,7 +78,8 @@ export default function SettlementWizard() {
   const setFinal = (k, v) => patch({ final: { ...(S.final || {}), [k]: v } });
 
   const saveOrder = (order, isNew) => {
-    setS((prev) => ({ ...prev, orders: isNew ? [...prev.orders, order] : prev.orders.map((o) => o.id === order.id ? order : o) }));
+    // 발주가 바뀌면 최종 검토를 다시 하도록 검토완료 해제
+    setS((prev) => ({ ...prev, reviewedAt: null, orders: isNew ? [...prev.orders, order] : prev.orders.map((o) => o.id === order.id ? order : o) }));
     setEditOrder(null);
     toast(isNew ? '발주를 추가했어요' : '발주를 수정했어요');
   };
@@ -173,7 +175,9 @@ export default function SettlementWizard() {
 
         {cur.key === 'compare' && (
           <QuoteChecklist S={S} orders={S.orders} promo={promo} popup={popup} promoFinal={promoFinal} popupFinal={popupFinal}
-            onToggle={toggleCheck} onFinal={setFinal} onFiles={handleQuotes} emailReq={emails.em1} onCopy={copyT} />
+            onToggle={toggleCheck} onFinal={setFinal} onFiles={handleQuotes} emailReq={emails.em1} onCopy={copyT}
+            onEdit={(o) => setEditOrder({ order: JSON.parse(JSON.stringify(o)), isNew: false })}
+            onReview={() => patch({ reviewedAt: new Date().toISOString() })} onUnreview={() => patch({ reviewedAt: null })} />
         )}
 
         {cur.key === 'settle' && (
@@ -228,15 +232,15 @@ export default function SettlementWizard() {
       )}
 
       {editOrder && (editOrder.order.type === 'promo'
-        ? <PromoForm init={editOrder} onSave={saveOrder} onClose={() => setEditOrder(null)} toast={toast} />
-        : <PopupForm init={editOrder} onSave={saveOrder} onClose={() => setEditOrder(null)} toast={toast} />)}
+        ? <PromoForm init={editOrder} cfg={cfg} onSave={saveOrder} onClose={() => setEditOrder(null)} toast={toast} />
+        : <PopupForm init={editOrder} cfg={cfg} onSave={saveOrder} onClose={() => setEditOrder(null)} toast={toast} />)}
       {ToastEl}
     </>
   );
 }
 
 /* ── 프로모션: 매장 × 규격 매트릭스 ── */
-function PromoForm({ init, onSave, onClose, toast }) {
+function PromoForm({ init, cfg, onSave, onClose, toast }) {
   const [o, setO] = useState(init.order);
   const [showSpec, setShowSpec] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -286,23 +290,26 @@ function PromoForm({ init, onSave, onClose, toast }) {
         <div className="lbl">매장별 발주 수량</div>
         <div className="tbl-wrap"><table>
           <thead><tr>
-            <th style={{ textAlign: 'left', minWidth: 110 }}>매장명</th><th style={{ minWidth: 70 }}>구분</th>
-            {specs.map((sp) => <th key={sp.key} style={{ minWidth: 52 }}>{sp.name}</th>)}
-            <th style={{ minWidth: 90 }}>정산</th><th style={{ width: 30 }}></th>
+            <th style={{ textAlign: 'left', minWidth: 110 }}>매장명</th><th style={{ minWidth: 64 }}>구분</th><th style={{ minWidth: 84 }}>특이사항</th>
+            {specs.map((sp) => <th key={sp.key} style={{ minWidth: 50 }}>{sp.name}</th>)}
+            <th style={{ minWidth: 52 }}>수량</th><th style={{ minWidth: 90 }}>정산</th><th style={{ width: 30 }}></th>
           </tr></thead>
           <tbody>
             {o.stores.map((s, si) => (
               <tr key={si}>
                 <td><input className="txt" value={s.name} placeholder="매장명" onChange={(e) => setStore(si, { name: e.target.value })} /></td>
                 <td><input value={s.category} placeholder="스탠드" onChange={(e) => setStore(si, { category: e.target.value })} /></td>
-                {specs.map((sp) => <td key={sp.key}><input type="number" value={s.qty[sp.key] || ''} onChange={(e) => setQty(si, sp.key, Number(e.target.value))} /></td>)}
+                <td><input className="txt" value={s.note} placeholder="-" onChange={(e) => setStore(si, { note: e.target.value })} /></td>
+                {specs.map((sp) => <td key={sp.key}><input type="number" value={s.qty[sp.key] ?? 0} onChange={(e) => setQty(si, sp.key, Number(e.target.value))} /></td>)}
+                <td className="num">{promoStoreQty(s, specs)}</td>
                 <td className="num" style={{ fontWeight: 700 }}>{fmt(promoStoreTotal(s, specs))}</td>
                 <td><button className="del-btn" onClick={() => delStore(si)}>×</button></td>
               </tr>
             ))}
             <tr className="row-total">
-              <td style={{ textAlign: 'left' }}>합계</td><td></td>
+              <td style={{ textAlign: 'left' }}>합계</td><td></td><td></td>
               {specs.map((sp) => <td key={sp.key} className="num">{o.stores.reduce((a, s) => a + (Number(s.qty[sp.key]) || 0), 0)}</td>)}
+              <td className="num">{o.stores.reduce((a, s) => a + promoStoreQty(s, specs), 0)}</td>
               <td className="num">{fmt(grandAmt)}</td><td></td>
             </tr>
           </tbody>
@@ -310,6 +317,7 @@ function PromoForm({ init, onSave, onClose, toast }) {
         <button className="add-row-btn" onClick={addStore}>+ 매장 추가</button>
 
         <ImageStrip images={o.images} uploading={uploading} onUpload={upload} onRemove={(idx) => setO({ ...o, images: o.images.filter((_, i) => i !== idx) })} />
+        <div className="btn-row" style={{ marginTop: 14 }}><button className="btn ghost sm" onClick={() => exportPromoXlsx(o, cfg)}>⬇ 프로모션 양식 엑셀 다운로드</button></div>
         <FormFoot isNew={init.isNew} onClose={onClose} onSave={save} />
       </div>
     </div>
@@ -317,13 +325,13 @@ function PromoForm({ init, onSave, onClose, toast }) {
 }
 
 /* ── 팝업: 부위별 스펙 + 금액 ── */
-function PopupForm({ init, onSave, onClose, toast }) {
+function PopupForm({ init, cfg, onSave, onClose, toast }) {
   const [o, setO] = useState(init.order);
   const setPart = (pi, p) => setO((x) => ({ ...x, parts: x.parts.map((pt, i) => i === pi ? { ...pt, ...p } : pt) }));
-  const addPart = () => setO((x) => ({ ...x, parts: [...x.parts, { name: '', attach: '', spec: '', sizes: [{ gu: 'A', out: '', real: '', qty: 1 }], amount: '', images: [] }] }));
+  const addPart = () => setO((x) => ({ ...x, parts: [...x.parts, { name: '', attach: '', spec: '', sizes: [{ gu: 'A', out: '', real: '', qty: 0 }], amount: 0, images: [] }] }));
   const delPart = (pi) => setO((x) => ({ ...x, parts: x.parts.filter((_, i) => i !== pi) }));
   const setSize = (pi, si, p) => setO((x) => ({ ...x, parts: x.parts.map((pt, i) => i === pi ? { ...pt, sizes: pt.sizes.map((s, j) => j === si ? { ...s, ...p } : s) } : pt) }));
-  const addSize = (pi) => setO((x) => ({ ...x, parts: x.parts.map((pt, i) => i === pi ? { ...pt, sizes: [...pt.sizes, { gu: '', out: '', real: '', qty: 1 }] } : pt) }));
+  const addSize = (pi) => setO((x) => ({ ...x, parts: x.parts.map((pt, i) => i === pi ? { ...pt, sizes: [...pt.sizes, { gu: '', out: '', real: '', qty: 0 }] } : pt) }));
   const delSize = (pi, si) => setO((x) => ({ ...x, parts: x.parts.map((pt, i) => i === pi ? { ...pt, sizes: pt.sizes.filter((_, j) => j !== si) } : pt) }));
 
   const total = (o.parts || []).reduce((a, p) => a + (Number(p.amount) || 0), 0);
@@ -358,7 +366,7 @@ function PopupForm({ init, onSave, onClose, toast }) {
                     <td><input value={sz.gu} onChange={(e) => setSize(pi, si, { gu: e.target.value })} /></td>
                     <td><input className="txt" value={sz.out} placeholder="3180 * 1570" onChange={(e) => setSize(pi, si, { out: e.target.value })} /></td>
                     <td><input className="txt" value={sz.real} placeholder="3080 * 1470" onChange={(e) => setSize(pi, si, { real: e.target.value })} /></td>
-                    <td><input type="number" value={sz.qty || ''} onChange={(e) => setSize(pi, si, { qty: Number(e.target.value) })} /></td>
+                    <td><input type="number" value={sz.qty ?? 0} onChange={(e) => setSize(pi, si, { qty: Number(e.target.value) })} /></td>
                     <td><button className="del-btn" onClick={() => delSize(pi, si)}>×</button></td>
                   </tr>
                 ))}
@@ -366,7 +374,7 @@ function PopupForm({ init, onSave, onClose, toast }) {
             </table></div>
             <button className="add-row-btn" onClick={() => addSize(pi)}>+ 사이즈 추가</button>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginTop: 12 }}>
-              <div className="fld" style={{ width: 180 }}><label>이 부위 금액 (직접입력)</label><input type="number" value={pt.amount} placeholder="0" onChange={(e) => setPart(pi, { amount: e.target.value })} /></div>
+              <div className="fld" style={{ width: 180 }}><label>이 부위 금액 (직접입력)</label><input type="number" value={pt.amount || 0} onChange={(e) => setPart(pi, { amount: Number(e.target.value) })} /></div>
               <div style={{ flex: 1 }} />
             </div>
             <ImageStrip images={pt.images} onUpload={(files) => uploadPart(pi, files)} onRemove={(idx) => setPart(pi, { images: pt.images.filter((_, i) => i !== idx) })} label="부위 이미지" />
@@ -377,6 +385,7 @@ function PopupForm({ init, onSave, onClose, toast }) {
         <div className="row-total" style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 'var(--radius-sm)', marginTop: 14, fontWeight: 800 }}>
           <span>팝업 발주 합계</span><span className="num" style={{ fontSize: 17 }}>{fmt(total)}원</span>
         </div>
+        <div className="btn-row" style={{ marginTop: 14 }}><button className="btn ghost sm" onClick={() => exportPopupXlsx(o, cfg)}>⬇ 팝업 양식 엑셀 다운로드</button></div>
         <FormFoot isNew={init.isNew} onClose={onClose} onSave={save} />
       </div>
     </div>
@@ -446,7 +455,7 @@ function orderCheckItems(o) {
   }));
 }
 
-function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onToggle, onFinal, onFiles, emailReq, onCopy }) {
+function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onToggle, onFinal, onFiles, emailReq, onCopy, onEdit, onReview, onUnreview }) {
   const fileRef = useRef(null);
   const [collapsed, setCollapsed] = useState({});
   const checks = S.checks || {};
@@ -491,6 +500,7 @@ function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onTog
                     <span style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{o.type === 'promo' ? (o.name || '(발주명 없음)') : (o.store || '(매장 없음)')}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: oDone ? 'var(--green)' : 'var(--ink-3)' }}>{oDone ? '✓ 완료' : `${oChk}/${items.length}`}</span>
                     <span className="num" style={{ fontWeight: 800, minWidth: 70, textAlign: 'right' }}>{fmt(orderAmount(o))}원</span>
+                    <button className="btn ghost sm" style={{ padding: '5px 10px' }} onClick={(e) => { e.stopPropagation(); onEdit(o); }}>수정</button>
                     <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>{col ? '▸' : '▾'}</span>
                   </div>
                   {!col && (
@@ -510,6 +520,22 @@ function QuoteChecklist({ S, orders, promo, popup, promoFinal, popupFinal, onTog
                 </div>
               );
             })}
+          </div>
+        )}
+        {orders.length > 0 && (
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+            {S.reviewedAt ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span className="badge ok" style={{ fontSize: 13 }}>✓ 최종 검토 완료</span>
+                <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>{new Date(S.reviewedAt).toLocaleString('ko-KR')}</span>
+                <button className="btn ghost sm" onClick={onUnreview}>다시 검토</button>
+              </div>
+            ) : (
+              <>
+                <button className="btn green lg" disabled={!allChecked} onClick={onReview}>최종 검토 완료</button>
+                {!allChecked && <p className="note">틀린 부분은 발주 ‘수정’으로 고친 뒤, 모든 항목을 체크하면 최종 검토를 완료할 수 있어요.</p>}
+              </>
+            )}
           </div>
         )}
       </div>
