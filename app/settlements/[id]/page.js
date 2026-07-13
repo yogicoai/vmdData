@@ -13,7 +13,7 @@ const STEPS = [
   { key: 'settle', label: '정산서' }, { key: 'tax', label: '세금계산서' }, { key: 'memo', label: '지출품의' },
 ];
 
-const emptyPromo = () => ({ id: uid(), type: 'promo', name: '', arriveDate: '', specs: PROMO_PRESET.map((s) => ({ ...s })), stores: [{ name: '', category: '', note: '', qty: {} }], images: [] });
+const emptyPromo = () => ({ id: uid(), type: 'promo', name: '', orderDate: '', arriveDate: '', specs: PROMO_PRESET.map((s) => ({ ...s })), stores: [{ name: '', category: '', note: '', qty: {} }], images: [] });
 const emptyPopup = () => ({ id: uid(), type: 'popup', name: '', store: '', orderDate: '', parts: [{ name: '백월', attach: '', spec: '', sizes: [{ gu: 'A', out: '', real: '', qty: 0 }], amount: 0, images: [] }] });
 
 async function uploadImages(files, toast) {
@@ -262,9 +262,10 @@ function PromoForm({ init, cfg, onSave, onClose, toast }) {
     <div className="modal-back" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 860, maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h3><span className="badge promo" style={{ marginRight: 8 }}>프로모션</span>{init.isNew ? '발주 추가' : '발주 수정'}</h3>
-        <div className="grid2" style={{ margin: '16px 0 14px' }}>
-          <div className="fld"><label>발주명</label><input value={o.name} placeholder="예: 6월 전사프로모션" onChange={(e) => setO({ ...o, name: e.target.value })} /></div>
-          <div className="fld"><label>매장 도착 요청일</label><input value={o.arriveDate} placeholder="2026. 5. 29(금)" onChange={(e) => setO({ ...o, arriveDate: e.target.value })} /></div>
+        <div className="fld" style={{ margin: '16px 0 12px' }}><label>발주명</label><input value={o.name} placeholder="예: 6월 전사프로모션" onChange={(e) => setO({ ...o, name: e.target.value })} /></div>
+        <div className="grid2" style={{ marginBottom: 14 }}>
+          <div className="fld"><label>발주요청일</label><input type="date" value={o.orderDate || ''} onChange={(e) => setO({ ...o, orderDate: e.target.value })} /></div>
+          <div className="fld"><label>매장 도착 요청일</label><input type="date" value={o.arriveDate || ''} onChange={(e) => setO({ ...o, arriveDate: e.target.value })} /></div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -345,7 +346,7 @@ function PopupForm({ init, cfg, onSave, onClose, toast }) {
         <h3><span className="badge popup" style={{ marginRight: 8 }}>팝업</span>{init.isNew ? '발주 추가' : '발주 수정'}</h3>
         <div className="grid2" style={{ margin: '16px 0 14px' }}>
           <div className="fld"><label>매장명 (위치)</label><input value={o.store} placeholder="예: 스타필드 하남" onChange={(e) => setO({ ...o, store: e.target.value })} /></div>
-          <div className="fld"><label>발주요청일</label><input value={o.orderDate} placeholder="2026. 2. 27(금)" onChange={(e) => setO({ ...o, orderDate: e.target.value })} /></div>
+          <div className="fld"><label>발주요청일</label><input type="date" value={o.orderDate || ''} onChange={(e) => setO({ ...o, orderDate: e.target.value })} /></div>
         </div>
 
         {o.parts.map((pt, pi) => (
